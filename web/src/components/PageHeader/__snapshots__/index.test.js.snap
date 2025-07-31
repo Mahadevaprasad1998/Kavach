@@ -1,0 +1,153 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Page Header component snapshot testing should render component 1`] = `
+<Provider
+  store={
+    Object {
+      "clearActions": [Function],
+      "dispatch": [Function],
+      "getActions": [Function],
+      "getState": [Function],
+      "replaceReducer": [Function],
+      "subscribe": [Function],
+    }
+  }
+>
+  <BrowserRouter>
+    <Router
+      history={
+        Object {
+          "action": "POP",
+          "block": [Function],
+          "createHref": [Function],
+          "go": [Function],
+          "goBack": [Function],
+          "goForward": [Function],
+          "length": 1,
+          "listen": [Function],
+          "location": Object {
+            "hash": "",
+            "pathname": "/",
+            "search": "",
+            "state": undefined,
+          },
+          "push": [Function],
+          "replace": [Function],
+        }
+      }
+    >
+      <PageHeader />
+    </Router>
+  </BrowserRouter>
+</Provider>
+`;
+
+exports[`Page Header component snapshot testing should render component with route found 1`] = `
+<Provider
+  store={
+    Object {
+      "clearActions": [Function],
+      "dispatch": [Function],
+      "getActions": [Function],
+      "getState": [Function],
+      "replaceReducer": [Function],
+      "subscribe": [Function],
+    }
+  }
+>
+  <BrowserRouter>
+    <Router
+      history={
+        Object {
+          "action": "POP",
+          "block": [Function],
+          "createHref": [Function],
+          "go": [Function],
+          "goBack": [Function],
+          "goForward": [Function],
+          "length": 1,
+          "listen": [Function],
+          "location": Object {
+            "hash": "",
+            "pathname": "/",
+            "search": "",
+            "state": undefined,
+          },
+          "push": [Function],
+          "replace": [Function],
+        }
+      }
+    >
+      <PageHeader>
+        <PageHeader
+          breadcrumb={
+            Object {
+              "itemRender": [Function],
+              "routes": Array [
+                Object {
+                  "breadcrumbName": "Home",
+                  "path": "/",
+                },
+              ],
+            }
+          }
+          ghost={false}
+        >
+          <ResizeObserver
+            onResize={[Function]}
+          >
+            <SingleObserver
+              key="rc-observer-key-0"
+              onResize={[Function]}
+            >
+              <DomWrapper>
+                <div
+                  className="ant-page-header has-breadcrumb"
+                >
+                  <Breadcrumb
+                    itemRender={[Function]}
+                    routes={
+                      Array [
+                        Object {
+                          "breadcrumbName": "Home",
+                          "path": "/",
+                        },
+                      ]
+                    }
+                  >
+                    <nav
+                      className="ant-breadcrumb"
+                    >
+                      <ol>
+                        <BreadcrumbItem
+                          key="Home"
+                          separator="/"
+                        >
+                          <li>
+                            <span
+                              className="ant-breadcrumb-link"
+                            >
+                              <span>
+                                Home
+                              </span>
+                            </span>
+                            <span
+                              className="ant-breadcrumb-separator"
+                            >
+                              /
+                            </span>
+                          </li>
+                        </BreadcrumbItem>
+                      </ol>
+                    </nav>
+                  </Breadcrumb>
+                </div>
+              </DomWrapper>
+            </SingleObserver>
+          </ResizeObserver>
+        </PageHeader>
+      </PageHeader>
+    </Router>
+  </BrowserRouter>
+</Provider>
+`;

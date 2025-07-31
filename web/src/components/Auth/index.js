@@ -1,0 +1,455 @@
+import React, { useState } from 'react';
+import './index.css';
+import { Link, useHistory } from 'react-router-dom';
+import { Input, Form, Button, Alert } from 'antd';
+import { UserOutlined, LockOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { getErrorMsgByCode } from '../../utils/errorcode';
+import OIDC from './oidc';
+import createForm from '../../utils/form';
+import MFA from './mfa';
+import passwordValidation from '../../utils/password-validation';
+import getApplicationSettings from '../../utils/getApplicationSettings';
+import BrandingComponent from '../Branding';
+import Loading from '../Loading';
+import { dispatchPosthogEvent } from '../../utils/posthog';
+import { capitalizeFirstLetter } from '../../utils/strings';
+
+function Auth(props) {
+  const [ui, setUI] = React.useState({});
+  const history = useHistory();
+  const [applicationSettings, setApplicationSettings] = useState({
+    applicationName: 'FACTLY',
+    applicationLogoURL: window.REACT_APP_LOGO_URL,
+    applicationURL: window.REACT_APP_PUBLIC_URL,
+    loginMethod: 'all',
+    enableRegistration: true,
+  });
+
+  const [aal2, setaal2] = React.useState(false); // aal stands for authenticator assurance level
+  const [loading, setLoading] = useState(true);
+  const [closeButtonVisibility, setCloseButtonVisibility] = useState(false);
+  var afterRegistrationReturnToURL = localStorage.getItem('returnTo')
+    ? localStorage.getItem('returnTo')
+    : null;
+
+  React.useEffect(() => {
+    function checkApplicationSettings() {
+      const returnTo = localStorage.getItem('returnTo');
+      const url = new URL(returnTo);
+      alert(url);
+      alert(process.env.NODE_ENV);
+      if (process.env.NODE_ENV === 'development') {
+        alert(url?.pathname);
+        if (url?.pathname.includes('kavach')) {
+          setCloseButtonVisibility(false);
+        } else {
+          setCloseButtonVisibility(returnTo ? true : false);
+        }
+      } else {
+        if (url?.hostname.includes('login')) {
+          setCloseButtonVisibility(false);
+        } else {
+          setCloseButtonVisibility(returnTo ? true : false);
+        }
+      }
+      const object = getApplicationSettings(localStorage.getItem('returnTo'));
+      setApplicationSettings(object);
+    }
+    window.addEventListener('storage', checkApplicationSettings);
+    return () => {
+      window.removeEventListener('storage', checkApplicationSettings);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setLoading(true);
+    var obj = {};
+
+    window.location.search
+      .split('?')
+      .filter((each) => each.trim() !== '')
+      .forEach((each) => {
+        alert(each);
+        var temp = each.split('=');
+        alert(temp);
+        obj[temp[0]] = temp[1];
+        alert(temp[0] + ' : ' + temp[1]);
+      });
+
+    const returnTo = obj['return_to'];
+    console.log('returnTo', returnTo);
+    let selfServiceURL;
+    if (returnTo) {
+      selfServiceURL =
+        window.REACT_APP_KRATOS_PUBLIC_URL +
+        '/self-service/' +
+        props.flow +
+        '/browser?return_to=' +
+        returnTo;
+    } else if (afterRegistrationReturnToURL) {
+      selfServiceURL =
+        window.REACT_APP_KRATOS_PUBLIC_URL +
+        '/self-service2/' +
+        props.flow +
+        '/browser?return_to=' +
+        afterRegistrationReturnToURL;
+    } else {
+      alert(selfServiceURL);
+      selfServiceURL =
+        window.REACT_APP_KRATOS_PUBLIC_URL + '/self-service/' + props.flow + '/browser';
+      alert(selfServiceURL);
+    }
+
+    if (!obj['flow']) {
+      //
+      console.log('No flow found, redirecting to <><>>' + selfServiceURL);
+      alert('No flow found, redirecting to<>>> ' + selfServiceURL);
+      window.location.href = selfServiceURL;
+    } else {
+      fetch(
+        window.REACT_APP_KRATOS_PUBLIC_URL +
+        '/self-service/' +
+        props.flow +
+        '/flows' +
+        '?id=' +
+        obj['flow'],
+        {
+          credentials: 'include',
+        },
+      )
+        .then((res) => {
+          if (res.status === 200) {
+            return res.json();
+          } else {
+            throw new Error(res.json());
+          }
+        })
+        .then((res) => {
+          setUI(res.ui);
+          setaal2(res.requested_aal === 'aal2');
+          if (props.flow === 'login' && res.return_to) {
+            localStorage.setItem('returnTo', res.return_to);
+            window.dispatchEvent(new Event('storage'));
+          }
+        })
+        .catch((err) => {
+          window.location.href = window.REACT_APP_PUBLIC_URL + '/error';
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    }
+  }, [props.flow, afterRegistrationReturnToURL]);
+
+  const handleClose = () => {
+    if (afterRegistrationReturnToURL) {
+      window.location.href = afterRegistrationReturnToURL;
+    }
+  };
+
+  const withPassword = (values) => {
+    dispatchPosthogEvent(capitalizeFirstLetter(props.flow), { email: values?.email });
+    var authForm = createForm(ui.action, ui.method);
+
+    var identifierInput = document.createElement('input');
+    identifierInput.name = props.flow === 'login' ? 'identifier' : 'traits.email';
+    identifierInput.value = values.email;
+
+    var passwordInput = document.createElement('input');
+    passwordInput.name = 'password';
+    passwordInput.value = values.password;
+
+    var csrfInput = document.createElement('input');
+    csrfInput.name = 'csrf_token';
+    csrfInput.type = 'hidden';
+    csrfInput.value = ui.nodes.find(
+      (value) => value.attributes.name === 'csrf_token',
+    ).attributes.value;
+
+    var methodInput = document.createElement('input');
+    methodInput.name = 'method';
+    methodInput.value = 'password';
+
+    authForm.appendChild(identifierInput);
+    authForm.appendChild(passwordInput);
+    authForm.appendChild(csrfInput);
+    authForm.appendChild(methodInput);
+
+    // adding first name and last name if the flow is for registration
+    if (props.flow !== 'login') {
+      var fnameInput = document.createElement('input');
+      fnameInput.name = 'traits.name.first';
+      fnameInput.value = values.first_name || '';
+
+      var lnameInput = document.createElement('input');
+      lnameInput.name = 'traits.name.last';
+      lnameInput.value = values.last_name || '';
+
+      authForm.appendChild(fnameInput);
+      authForm.appendChild(lnameInput);
+    }
+
+    document.body.appendChild(authForm);
+    authForm.submit();
+  };
+  return (
+    <div className="auth">
+      <BrandingComponent />
+      {loading ? (
+        <Loading />
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '4px',
+            width: '50%',
+          }}
+        >
+          {closeButtonVisibility ? (
+            <div
+              style={{
+                display: 'flex',
+                width: '100%',
+                justifyContent: 'flex-end',
+                marginTop: '10px',
+                marginRight: '20px',
+              }}
+            >
+              <CloseCircleOutlined style={{ fontSize: '36px' }} onClick={handleClose} />
+            </div>
+          ) : null}
+          <div style={{ marginTop: 'auto', marginBottom: 'auto' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                justifyContent: 'center',
+              }}
+            >
+              {applicationSettings?.applicationLogoURL ? (
+                <img
+                  alt="logo"
+                  className="logo"
+                  src={applicationSettings.applicationLogoURL}
+                  style={{ maxWidth: '360px', height: 'auto' }}
+                />
+              ) : (
+                <span className="title">{applicationSettings.applicationName}</span>
+              )}
+            </div>
+            {aal2 ? (
+              <MFA ui={ui} />
+            ) : (
+              <div style={{ maxWidth: 600, minWidth: 400, margin: '2rem' }}>
+                <Form name="auth" onFinish={withPassword}>
+                  {ui.messages
+                    ? ui.messages.map((message, index) => (
+                      <Alert message={getErrorMsgByCode(message.id)} type="error" key={index} />
+                    ))
+                    : null}
+                  <div style={{ marginBottom: '1rem', marginTop: '1rem' }}>
+                    {ui?.nodes?.filter((each) => each.group === 'oidc').length > 0 &&
+                      (applicationSettings.loginMethod === 'all' ||
+                        applicationSettings.loginMethod === 'oidc')
+                      ? [
+                        <OIDC
+                          key={'oidc'}
+                          ui={ui}
+                          flow={props.flow}
+                          loginMethod={applicationSettings.loginMethod}
+                        />,
+                      ]
+                      : null}
+                  </div>
+                  {ui.nodes && ui.nodes.messages ? (
+                    <Form.Item>
+                      {ui.nodes.messages.map((message, index) => (
+                        <Alert message={getErrorMsgByCode(message.id)} type="error" key={index} />
+                      ))}
+                      :{' '}
+                    </Form.Item>
+                  ) : null}
+                  {ui.nodes
+                    ? ui.nodes.map((node, index) => {
+                      return node.messages.length > 0 ? (
+                        <Alert message={node.messages[0].text} type="error" key={index} />
+                      ) : null;
+                    })
+                    : null}
+                  {props.flow !== 'login' &&
+                    (applicationSettings.loginMethod === 'all' ||
+                      applicationSettings.loginMethod === 'password') ? (
+                    <div>
+                      <Form.Item
+                        name="first_name"
+                        rules={[{ required: true, message: 'Please input your First Name!' }]}
+                      >
+                        <Input
+                          size="large"
+                          prefix={<UserOutlined className="site-form-item-icon" />}
+                          placeholder="First Name"
+                        />
+                      </Form.Item>
+                      <Form.Item name="last_name">
+                        <Input
+                          size="large"
+                          prefix={<UserOutlined className="site-form-item-icon" />}
+                          placeholder="Last Name"
+                        />
+                      </Form.Item>
+                    </div>
+                  ) : null}
+                  {applicationSettings.loginMethod === 'all' ||
+                    applicationSettings.loginMethod === 'password' ? (
+                    <div>
+                      <Form.Item
+                        name="email"
+                        rules={[
+                          { required: true, message: 'Please input your Email!' },
+                          { type: 'email', message: 'Please input valid Email!' },
+                        ]}
+                      >
+                        <Input
+                          size="large"
+                          prefix={<UserOutlined className="site-form-item-icon" />}
+                          placeholder="Email"
+                        />
+                      </Form.Item>
+                      <Form.Item
+                        name="password"
+                        rules={
+                          props.flow !== 'login'
+                            ? [
+                              { required: true, message: 'Please input your Password!' },
+                              ({ getFieldValue }) => ({
+                                validator(rule, value) {
+                                  if (passwordValidation(value) !== null) {
+                                    return Promise.reject(passwordValidation(value));
+                                  }
+                                  return Promise.resolve();
+                                },
+                              }),
+                            ]
+                            : [{ required: true, message: 'Please input your Password!' }]
+                        }
+                      >
+                        <Input.Password
+                          size="large"
+                          prefix={<LockOutlined className="site-form-item-icon" />}
+                          type="password"
+                          placeholder="Password"
+                        />
+                      </Form.Item>
+                    </div>
+                  ) : null}
+                  {props.flow === 'login' ? (
+                    ''
+                  ) : applicationSettings.loginMethod === 'all' ||
+                    applicationSettings.loginMethod === 'password' ? (
+                    <Form.Item
+                      name="confirmPassword"
+                      dependencies={['password']}
+                      rules={[
+                        { required: true, message: 'Please re-enter your Password!' },
+                        ({ getFieldValue }) => ({
+                          validator(rule, value) {
+                            if (getFieldValue('password') !== value) {
+                              return Promise.reject('Password do no match!');
+                            }
+                            return Promise.resolve();
+                          },
+                        }),
+                      ]}
+                    >
+                      <Input.Password
+                        size="large"
+                        prefix={<LockOutlined className="site-form-item-icon" />}
+                        type="password"
+                        placeholder="Confirm Password"
+                      />
+                    </Form.Item>
+                  ) : null}
+                  {applicationSettings.loginMethod === 'all' ||
+                    applicationSettings.loginMethod === 'password' ? (
+                    <Form.Item>
+                      <Button
+                        size="large"
+                        form="auth"
+                        style={{ width: '100%' }}
+                        type="primary"
+                        shape="round"
+                        htmlType="submit"
+                        block
+                      >
+                        {props.flow === 'login' ? 'Login' : 'Register'}
+                      </Button>
+                    </Form.Item>
+                  ) : null}
+                </Form>
+              </div>
+            )}
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '16px',
+                fontWeight: 1000,
+              }}
+            >
+              {props.flow === 'login' ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
+                >
+                  {ui && ui.messages ? (
+                    ui.messages[0].id === 4000010 ? (
+                      <Form.Item>
+                        <Link
+                          to={'/auth/verification'}
+                          style={{
+                            fontSize: '16px',
+                          }}
+                        >
+                          Verify your Email
+                        </Link>
+                      </Form.Item>
+                    ) : null
+                  ) : null}
+                  {applicationSettings.enableRegistration ? (
+                    <Button
+                      type="link"
+                      size="large"
+                      onClick={() => history.push('/auth/registration')}
+                    >
+                      Don't have an account yet? <u>Sign up</u>
+                    </Button>
+                  ) : null}
+                  {applicationSettings.loginMethod !== 'oidc' ? (
+                    <Button type="link" size="large" onClick={() => history.push('/auth/recovery')}>
+                      Forgot Password?
+                    </Button>
+                  ) : null}
+                </div>
+              ) : (
+                <Button type="link" size="large" onClick={() => history.push('/auth/login')}>
+                  Already have an account? <u>Log in</u>{' '}
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default Auth;

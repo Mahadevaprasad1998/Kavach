@@ -1,0 +1,18 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`password component snapshot component should render the component 1`] = `
+<Space
+  className="content"
+  style={
+    Object {
+      "alignItems": "center",
+      "display": "flex",
+      "flexDirection": "column",
+      "height": "100%",
+      "justifyContent": "space-around",
+    }
+  }
+>
+  <Skeleton />
+</Space>
+`;
