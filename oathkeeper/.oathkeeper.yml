@@ -19,7 +19,7 @@ serve:
         - Content-Type
       exposed_headers:
         - Content-Type
-      allow_credentials: true
+      allow_credentials: false
       debug: true
 
 errors:
